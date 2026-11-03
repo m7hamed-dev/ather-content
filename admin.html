@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>إدارة محتوى أثر</title>
+<style>
+  :root{
+    --teal:#06A9A1; --teal-dark:#027D77; --teal-ink:#02544F;
+    --bg:#F4FAF9; --surface:#FFFFFF; --line:#DCE8E7;
+    --ink:#0F2E2C; --muted:#5A7472; --danger:#C0392B; --warn:#9A6B00;
+    --warn-bg:#FFF6E0; --danger-bg:#FDECEA; --ok:#0B7D4B; --ok-bg:#E8F6EF;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1725; --surface:#16293E; --line:#2B3F56;
+      --ink:#E9EFF6; --muted:#9EADBE; --teal:#3FBDB6; --teal-dark:#2E8F89;
+      --teal-ink:#A8F2EC; --warn-bg:#3A2E10; --danger-bg:#3A1B18;
+      --ok-bg:#12301F;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0C1725; --surface:#16293E; --line:#2B3F56;
+    --ink:#E9EFF6; --muted:#9EADBE; --teal:#3FBDB6; --teal-dark:#2E8F89;
+    --teal-ink:#A8F2EC; --warn-bg:#3A2E10; --danger-bg:#3A1B18; --ok-bg:#12301F;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif;
+  }
+  header{
+    background:linear-gradient(135deg,var(--teal),var(--teal-dark));
+    color:#fff; padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 16px}
+  header .wrap{padding:0}
+  h1{margin:0; font-size:19px}
+  header p{margin:4px 0 0; opacity:.85; font-size:13px}
+  .tabs{display:flex; gap:8px; margin-top:14px}
+  .tabs button{
+    flex:1; border:0; border-radius:10px; padding:10px; cursor:pointer;
+    background:rgba(255,255,255,.18); color:#fff; font:inherit; font-weight:700;
+  }
+  .tabs button[aria-selected="true"]{background:#fff; color:var(--teal-dark)}
+  main{max-width:860px; margin:0 auto; padding:16px}
+  .card{
+    background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); padding:14px; margin-bottom:14px;
+  }
+  .card h2{margin:0 0 10px; font-size:15px}
+  label{display:block; font-size:13px; color:var(--muted); margin:10px 0 4px}
+  input,textarea,select{
+    width:100%; padding:10px 12px; border:1px solid var(--line);
+    border-radius:10px; background:var(--bg); color:var(--ink);
+    font:inherit; direction:rtl;
+  }
+  input[dir="ltr"]{direction:ltr; text-align:left}
+  textarea{min-height:92px; resize:vertical}
+  button{font:inherit}
+  .btn{
+    border:0; border-radius:10px; padding:10px 16px; cursor:pointer;
+    background:var(--teal-dark); color:#fff; font-weight:700;
+  }
+  .btn.ghost{background:transparent; color:var(--teal-dark); border:1px solid var(--line)}
+  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--line)}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .row.end{justify-content:flex-end}
+  .grow{flex:1}
+  .item{border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:10px; background:var(--surface)}
+  .item header{background:none; color:inherit; padding:0; display:flex; align-items:center; gap:8px}
+  .idx{
+    width:26px; height:26px; flex:none; border-radius:8px; display:grid; place-items:center;
+    background:var(--teal); color:#fff; font-size:12px; font-weight:700;
+  }
+  .note{font-size:12.5px; color:var(--muted); margin:6px 0 0}
+  .msg{border-radius:10px; padding:10px 12px; margin:10px 0; font-size:13.5px}
+  .msg.warn{background:var(--warn-bg); color:var(--warn)}
+  .msg.err{background:var(--danger-bg); color:var(--danger)}
+  .msg.ok{background:var(--ok-bg); color:var(--ok)}
+  .bar{
+    position:sticky; bottom:0; background:var(--surface); border-top:1px solid var(--line);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px)); margin-top:16px;
+  }
+  .bar .wrap{display:flex; gap:8px; align-items:center}
+  .hide{display:none}
+  details summary{cursor:pointer; font-weight:700; font-size:14px}
+  code{background:var(--bg); padding:1px 5px; border-radius:5px; font-size:12.5px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>إدارة محتوى أثر</h1>
+    <p>يحرّر <code>reels.json</code> و<code>community.json</code> في <span id="repoName">—</span> مباشرة.</p>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-reels" aria-selected="true" onclick="App.show('reels')">الريلز</button>
+      <button role="tab" id="tab-community" aria-selected="false" onclick="App.show('community')">المجتمع</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>الاتصال بـ GitHub</h2>
+    <label for="token">Personal Access Token</label>
+    <input id="token" type="password" dir="ltr" placeholder="github_pat_…" autocomplete="off">
+    <p class="note">
+      يُحفظ في متصفّحك وحده (<code>localStorage</code>) ولا يُرسل إلا إلى
+      <code>api.github.com</code>. أنشئ توكنًا دقيق الصلاحية من
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">إعدادات GitHub</a>
+      بصلاحية <code>Contents: Read and write</code> على مستودع
+      <code>ather-content</code> فقط.
+    </p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="App.load()">تحميل المحتوى</button>
+      <button class="btn ghost" onclick="App.forgetToken()">نسيان التوكن</button>
+      <span class="grow"></span>
+      <span id="loadState" class="note"></span>
+    </div>
+  </div>
+
+  <div id="banner"></div>
+
+  <section id="screen-reels">
+    <div class="row" style="margin-bottom:10px">
+      <strong class="grow">المقاطع (<span id="reelsCount">0</span>)</strong>
+      <button class="btn ghost" onclick="App.add('reels')">+ مقطع</button>
+    </div>
+    <div id="reelsList"></div>
+    <details class="card">
+      <summary>ما الرابط الذي يعمل؟</summary>
+      <p class="note">
+        <code>videoUrl</code> يجب أن يكون رابطًا مباشرًا لملف فيديو — ينتهي
+        غالبًا بـ<code>.mp4</code>. رابط صفحة إنستغرام أو يوتيوب أو تيك توك
+        <strong>لا يعمل</strong>: المشغّل يطلب الملف نفسه، وما يصله صفحة HTML.
+        أسهل حلّ: ارفع ملف <code>.mp4</code> داخل هذا المستودع وخذ رابط Raw له.
+      </p>
+    </details>
+  </section>
+
+  <section id="screen-community" class="hide">
+    <div class="row" style="margin-bottom:10px">
+      <strong class="grow">الرسائل (<span id="communityCount">0</span>)</strong>
+      <button class="btn ghost" onclick="App.add('community')">+ رسالة</button>
+    </div>
+    <div id="communityList"></div>
+    <p class="note">
+      <code>category</code> يصنع شريحة تصفية في التطبيق تلقائيًا — اكتب تصنيفًا
+      جديدًا وستظهر شريحته.
+    </p>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="wrap">
+    <input id="commitMessage" placeholder="وصف التعديل (اختياري)">
+    <button class="btn" id="saveBtn" onclick="App.save()" disabled>حفظ ونشر</button>
+  </div>
+</div>
+
+<script>
+const App = (() => {
+  const OWNER = 'm7hamed-dev';
+  const REPO  = 'ather-content';
+  const API   = `https://api.github.com/repos/${OWNER}/${REPO}/contents`;
+  const PAGE_HOSTS = ['instagram.com','youtube.com','youtu.be','tiktok.com','facebook.com','twitter.com','x.com'];
+
+  /** The two files, each with the sha we loaded so a save cannot clobber
+   *  someone else's edit. */
+  const files = {
+    reels:     { path:'reels.json',     sha:null, doc:null, screen:'reels' },
+    community: { path:'community.json', sha:null, doc:null, screen:'community' },
+  };
+  let current = 'reels';
+  let dirty = false;
+
+  // ---- utilities -----------------------------------------------------
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // Arabic needs the full UTF-8 round trip; btoa alone mangles it.
+  const toBase64 = str =>
+    btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+  const fromBase64 = b64 =>
+    new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+
+  const banner = (kind, html) => {
+    $('banner').innerHTML = `<div class="msg ${kind}">${html}</div>`;
+  };
+  const clearBanner = () => { $('banner').innerHTML = ''; };
+
+  const token = () => $('token').value.trim();
+
+  const markDirty = () => {
+    dirty = true;
+    $('saveBtn').disabled = false;
+  };
+
+  // ---- loading -------------------------------------------------------
+  async function load(){
+    if (!token()) { banner('err','ألصق التوكن أولًا.'); return; }
+    localStorage.setItem('ather_admin_token', token());
+    $('loadState').textContent = 'جارٍ التحميل…';
+    clearBanner();
+    try {
+      for (const key of Object.keys(files)) {
+        const file = files[key];
+        const res = await fetch(`${API}/${file.path}`, {
+          headers: {
+            Authorization: `Bearer ${token()}`,
+            Accept: 'application/vnd.github+json',
+          },
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error(await describe(res, file.path));
+        const body = await res.json();
+        file.sha = body.sha;
+        const parsed = JSON.parse(fromBase64(body.content.replace(/\n/g,'')));
+        file.doc = Array.isArray(parsed) ? { items: parsed } : parsed;
+        file.doc.items ||= [];
+      }
+      dirty = false;
+      $('saveBtn').disabled = true;
+      $('loadState').textContent = 'مُحمَّل';
+      render();
+    } catch (error) {
+      $('loadState').textContent = '';
+      banner('err', esc(error.message));
+    }
+  }
+
+  async function describe(res, path){
+    if (res.status === 401) return 'التوكن غير صالح أو منتهٍ.';
+    if (res.status === 403) return 'التوكن لا يملك صلاحية على هذا المستودع.';
+    if (res.status === 404) return `لم يُعثر على ${path} في المستودع.`;
+    return `${path}: خطأ ${res.status}`;
+  }
+
+  // ---- editing -------------------------------------------------------
+  function add(key){
+    const items = files[key]?.doc?.items;
+    if (!items) { banner('err','حمّل المحتوى أولًا.'); return; }
+    const prefix = key === 'reels' ? 'reel' : 'c';
+    let n = items.length + 1;
+    const ids = new Set(items.map(i => i.id));
+    while (ids.has(`${prefix}-${String(n).padStart(3,'0')}`)) n++;
+    items.unshift(key === 'reels'
+      ? { id:`${prefix}-${String(n).padStart(3,'0')}`, title:'', videoUrl:'', thumbnailUrl:null }
+      : { id:`${prefix}-${String(n).padStart(3,'0')}`, title:'', content:'',
+          date:new Date().toISOString().slice(0,10), category:'' });
+    markDirty();
+    render();
+  }
+
+  function remove(key, index){
+    const items = files[key].doc.items;
+    if (!confirm(`حذف «${items[index].title || items[index].id}»؟`)) return;
+    items.splice(index, 1);
+    markDirty();
+    render();
+  }
+
+  function move(key, index, by){
+    const items = files[key].doc.items;
+    const to = index + by;
+    if (to < 0 || to >= items.length) return;
+    [items[index], items[to]] = [items[to], items[index]];
+    markDirty();
+    render();
+  }
+
+  function set(key, index, field, value){
+    const v = value.trim();
+    files[key].doc.items[index][field] = v === '' && field !== 'title' ? null : value;
+    markDirty();
+    // Re-render only the warnings, so typing does not lose the caret.
+    paintWarnings(key);
+  }
+
+  // ---- validation ----------------------------------------------------
+  function problems(key, item){
+    const out = [];
+    const need = key === 'reels' ? ['id','title','videoUrl'] : ['id','title','content'];
+    for (const field of need) {
+      if (!String(item[field] ?? '').trim()) out.push({kind:'err', text:`${field} مطلوب — التطبيق يتخطّى هذا العنصر`});
+    }
+    if (key === 'reels') {
+      const url = String(item.videoUrl ?? '').trim();
+      if (url && !/^https?:\/\//i.test(url)) {
+        out.push({kind:'err', text:'الرابط يجب أن يبدأ بـ https://'});
+      } else if (url) {
+        try {
+          const host = new URL(url).hostname.replace(/^www\./,'');
+          if (PAGE_HOSTS.some(h => host === h || host.endsWith('.'+h))) {
+            out.push({kind:'warn', text:'هذا رابط صفحة لا ملف فيديو — لن يُشغَّل'});
+          } else if (!/\.(mp4|m4v|mov|webm)(\?|$)/i.test(url)) {
+            out.push({kind:'warn', text:'الرابط لا ينتهي بامتداد فيديو معروف — تأكّد أنه ملف مباشر'});
+          }
+        } catch { out.push({kind:'err', text:'رابط غير صالح'}); }
+      }
+    }
+    return out;
+  }
+
+  function duplicateIds(key){
+    const seen = new Map();
+    for (const item of files[key].doc.items) {
+      const id = String(item.id ?? '').trim();
+      seen.set(id, (seen.get(id) ?? 0) + 1);
+    }
+    return new Set([...seen].filter(([id,n]) => id && n > 1).map(([id]) => id));
+  }
+
+  function paintWarnings(key){
+    const dupes = duplicateIds(key);
+    files[key].doc.items.forEach((item, index) => {
+      const slot = $(`${key}-warn-${index}`);
+      if (!slot) return;
+      const list = problems(key, item);
+      if (dupes.has(String(item.id ?? '').trim())) {
+        list.push({kind:'err', text:'هذا المعرّف مكرّر'});
+      }
+      slot.innerHTML = list
+        .map(p => `<div class="msg ${p.kind}">${esc(p.text)}</div>`).join('');
+    });
+  }
+
+  // ---- rendering -----------------------------------------------------
+  function field(key, index, name, label, {type='input', ltr=false, hint=''} = {}){
+    const value = files[key].doc.items[index][name] ?? '';
+    const common = `oninput="App.set('${key}',${index},'${name}',this.value)"`;
+    const control = type === 'textarea'
+      ? `<textarea ${common}>${esc(value)}</textarea>`
+      : `<input ${ltr ? 'dir="ltr"' : ''} value="${esc(value)}" ${common}>`;
+    return `<label>${label}</label>${control}${hint ? `<p class="note">${hint}</p>` : ''}`;
+  }
+
+  function render(){
+    for (const key of Object.keys(files)) {
+      const file = files[key];
+      const host = $(`${key}List`);
+      if (!file.doc) { host.innerHTML = '<p class="note">لم يُحمَّل بعد.</p>'; continue; }
+      $(`${key}Count`).textContent = file.doc.items.length;
+      host.innerHTML = file.doc.items.map((item, index) => `
+        <div class="item">
+          <header>
+            <span class="idx">${index + 1}</span>
+            <strong class="grow">${esc(item.title || '(بلا عنوان)')}</strong>
+            <button class="btn ghost" onclick="App.move('${key}',${index},-1)" title="لأعلى">▲</button>
+            <button class="btn ghost" onclick="App.move('${key}',${index},1)" title="لأسفل">▼</button>
+            <button class="btn danger" onclick="App.remove('${key}',${index})">حذف</button>
+          </header>
+          <div id="${key}-warn-${index}"></div>
+          ${field(key, index, 'id', 'المعرّف (ثابت لا يتغيّر)', {ltr:true})}
+          ${field(key, index, 'title', 'العنوان')}
+          ${key === 'reels'
+            ? field(key, index, 'videoUrl', 'رابط الفيديو المباشر', {ltr:true})
+              + field(key, index, 'thumbnailUrl', 'صورة المعاينة (اختياري)', {ltr:true})
+            : field(key, index, 'content', 'النص', {type:'textarea'})
+              + field(key, index, 'date', 'التاريخ (اختياري)', {ltr:true})
+              + field(key, index, 'category', 'التصنيف (اختياري)')}
+        </div>`).join('');
+      paintWarnings(key);
+    }
+  }
+
+  function show(key){
+    current = key;
+    for (const other of Object.keys(files)) {
+      $(`screen-${other}`).classList.toggle('hide', other !== key);
+      $(`tab-${other}`).setAttribute('aria-selected', String(other === key));
+    }
+  }
+
+  // ---- saving --------------------------------------------------------
+  async function save(){
+    const blocking = [];
+    for (const key of Object.keys(files)) {
+      if (!files[key].doc) continue;
+      const dupes = duplicateIds(key);
+      files[key].doc.items.forEach(item => {
+        const bad = problems(key, item).filter(p => p.kind === 'err');
+        if (bad.length) blocking.push(`${key}: ${item.id || '(بلا معرّف)'} — ${bad[0].text}`);
+        if (dupes.has(String(item.id ?? '').trim())) {
+          blocking.push(`${key}: المعرّف ${item.id} مكرّر`);
+        }
+      });
+    }
+    if (blocking.length) {
+      banner('err', 'لم يُحفظ شيء:<br>' + blocking.map(esc).join('<br>'));
+      return;
+    }
+
+    $('saveBtn').disabled = true;
+    const message = $('commitMessage').value.trim() || 'تحديث المحتوى من لوحة الإدارة';
+    const done = [];
+    try {
+      for (const key of Object.keys(files)) {
+        const file = files[key];
+        if (!file.doc) continue;
+        file.doc.updatedAt = new Date().toISOString().slice(0,10);
+        const body = JSON.stringify(file.doc, null, 2) + '\n';
+        const res = await fetch(`${API}/${file.path}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token()}`,
+            Accept: 'application/vnd.github+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message, content: toBase64(body), sha: file.sha }),
+        });
+        if (res.status === 409) {
+          throw new Error(`${file.path} تغيّر على GitHub بعد تحميله. اضغط «تحميل المحتوى» ثم أعد تعديلك.`);
+        }
+        if (!res.ok) throw new Error(await describe(res, file.path));
+        file.sha = (await res.json()).content.sha;
+        done.push(file.path);
+      }
+      dirty = false;
+      banner('ok', `تم النشر: ${esc(done.join(' و '))}. قد يتأخر ظهوره في التطبيق بضع دقائق — روابط Raw تمرّ بذاكرة CDN.`);
+    } catch (error) {
+      banner('err', esc(error.message));
+      $('saveBtn').disabled = false;
+    }
+  }
+
+  function forgetToken(){
+    localStorage.removeItem('ather_admin_token');
+    $('token').value = '';
+    banner('ok','حُذف التوكن من هذا المتصفح.');
+  }
+
+  // ---- boot ----------------------------------------------------------
+  window.addEventListener('DOMContentLoaded', () => {
+    $('repoName').textContent = `${OWNER}/${REPO}`;
+    const saved = localStorage.getItem('ather_admin_token');
+    if (saved) { $('token').value = saved; load(); }
+  });
+  window.addEventListener('beforeunload', event => {
+    if (dirty) event.preventDefault();
+  });
+
+  return { load, add, remove, move, set, save, show, forgetToken };
+})();
+</script>
+</body>
+</html>
