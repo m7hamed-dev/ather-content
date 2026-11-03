@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-03",
+  "items": [
+    {
+      "id": "reel-001",
+      "title": "نماذج مؤقتة — استبدلها بمقاطعك",
+      "videoUrl": "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4",
+      "thumbnailUrl": null
+    },
+    {
+      "id": "reel-002",
+      "title": "مقطع تجريبي ثانٍ",
+      "videoUrl": "https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4",
+      "thumbnailUrl": null
+    },
+    {
+      "id": "reel-003",
+      "title": "مقطع تجريبي قصير",
+      "videoUrl": "https://download.samplelib.com/mp4/sample-5s.mp4",
+      "thumbnailUrl": null
+    }
+  ]
+}
