@@ -85,6 +85,13 @@
     padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px)); margin-top:16px;
   }
   .bar .wrap{display:flex; gap:8px; align-items:center}
+  .preview{
+    display:block; margin-top:8px; max-width:100%; max-height:170px;
+    border-radius:10px; border:1px solid var(--line); background:var(--bg);
+  }
+  .filerow{display:flex; gap:8px; align-items:center; margin-top:6px}
+  .btn.small{padding:6px 12px; font-size:13px}
+  /* After .preview, so a field with no picture yet really does hide it. */
   .hide{display:none}
   details summary{cursor:pointer; font-weight:700; font-size:14px}
   code{background:var(--bg); padding:1px 5px; border-radius:5px; font-size:12.5px}
@@ -132,12 +139,22 @@
     </div>
     <div id="reelsList"></div>
     <details class="card">
-      <summary>ما الرابط الذي يعمل؟</summary>
+      <summary>ثلاث طرق لنشر مقطع</summary>
       <p class="note">
-        <code>videoUrl</code> يجب أن يكون رابطًا مباشرًا لملف فيديو — ينتهي
-        غالبًا بـ<code>.mp4</code>. رابط صفحة إنستغرام أو يوتيوب أو تيك توك
-        <strong>لا يعمل</strong>: المشغّل يطلب الملف نفسه، وما يصله صفحة HTML.
-        أسهل حلّ: ارفع ملف <code>.mp4</code> داخل هذا المستودع وخذ رابط Raw له.
+        <strong>فيديو:</strong> ضع في <code>videoUrl</code> رابطًا مباشرًا
+        لملف فيديو — ينتهي غالبًا بـ<code>.mp4</code>. أسهل حلّ: ارفع الملف
+        داخل هذا المستودع وخذ رابط Raw له.
+      </p>
+      <p class="note">
+        <strong>صورة:</strong> اترك <code>videoUrl</code> فارغًا وارفع صورة في
+        <code>imageUrl</code>. تُعرض البطاقة بملء الشاشة بلا مشغّل — أسرع
+        طريقة لنشر تذكير مصمَّم.
+      </p>
+      <p class="note">
+        <strong>رابط:</strong> رابط صفحة إنستغرام أو يوتيوب أو تيك توك لا
+        يُشغَّل داخل التطبيق — لكنه <em>لم يعد</em> يضيع: يظهر كزرّ
+        «فتح على …» يفتح الصفحة خارج التطبيق. وإن أضفت معه
+        <code>imageUrl</code> صار للزر خلفية بدل اللون السادة.
       </p>
     </details>
   </section>
@@ -150,7 +167,8 @@
     <div id="communityList"></div>
     <p class="note">
       <code>category</code> يصنع شريحة تصفية في التطبيق تلقائيًا — اكتب تصنيفًا
-      جديدًا وستظهر شريحته.
+      جديدًا وستظهر شريحته. و<code>imageUrl</code> اختياري: الرسالة بلا صورة
+      تظهر كما كانت، والرسالة بصورة تتصدّرها بنسبة 16:9.
     </p>
   </section>
 </main>
@@ -167,7 +185,16 @@ const App = (() => {
   const OWNER = 'm7hamed-dev';
   const REPO  = 'ather-content';
   const API   = `https://api.github.com/repos/${OWNER}/${REPO}/contents`;
-  const PAGE_HOSTS = ['instagram.com','youtube.com','youtu.be','tiktok.com','facebook.com','twitter.com','x.com'];
+  // Kept in step with Reel.pageHosts in the app.
+  const PAGE_HOSTS = ['instagram.com','youtube.com','youtu.be','tiktok.com',
+    'facebook.com','fb.watch','twitter.com','x.com','snapchat.com',
+    'threads.net','vimeo.com'];
+  const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main`;
+  /// Anything wider than this is scaled down before it is uploaded: a feed
+  /// on a phone has no use for a 4000px photograph, and the reader pays for
+  /// every byte of it.
+  const MAX_EDGE = 1600;
+  const UPLOAD_AS_IS = 400 * 1024;
 
   /** The two files, each with the sha we loaded so a save cannot clobber
    *  someone else's edit. */
@@ -250,9 +277,10 @@ const App = (() => {
     const ids = new Set(items.map(i => i.id));
     while (ids.has(`${prefix}-${String(n).padStart(3,'0')}`)) n++;
     items.unshift(key === 'reels'
-      ? { id:`${prefix}-${String(n).padStart(3,'0')}`, title:'', videoUrl:'', thumbnailUrl:null }
+      ? { id:`${prefix}-${String(n).padStart(3,'0')}`, title:'', description:null,
+          videoUrl:'', imageUrl:null, linkUrl:null, thumbnailUrl:null }
       : { id:`${prefix}-${String(n).padStart(3,'0')}`, title:'', content:'',
-          date:new Date().toISOString().slice(0,10), category:'' });
+          date:new Date().toISOString().slice(0,10), category:'', imageUrl:null });
     markDirty();
     render();
   }
@@ -280,28 +308,133 @@ const App = (() => {
     markDirty();
     // Re-render only the warnings, so typing does not lose the caret.
     paintWarnings(key);
+    paintPreview(key, index, field, v);
+  }
+
+  function paintPreview(key, index, field, url){
+    const img = $(`${key}-${field}-${index}-preview`);
+    if (!img) return;
+    img.classList.toggle('hide', !url);
+    if (url) img.src = url;
+  }
+
+  // ---- pictures ------------------------------------------------------
+  const asBase64 = blob => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('تعذّرت قراءة الملف'));
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+
+  /// A small picture goes up as it is; anything else is scaled down and
+  /// re-encoded, so a photograph straight off a phone does not become a
+  /// four-megabyte download for every reader.
+  async function prepare(file){
+    const keepable = /^image\/(png|jpeg|webp)$/.test(file.type);
+    if (keepable && file.size <= UPLOAD_AS_IS) {
+      return { base64: await asBase64(file), ext: file.type.split('/')[1].replace('jpeg','jpg') };
+    }
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.max(1, Math.round(bitmap.width  * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d');
+    // JPEG has no transparency; without this a transparent PNG goes black.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const blob = await new Promise(done => canvas.toBlob(done, 'image/jpeg', 0.85));
+    if (!blob) throw new Error('تعذّر تجهيز الصورة');
+    return { base64: await asBase64(blob), ext: 'jpg' };
+  }
+
+  const slug = value => String(value || 'image')
+    .replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g,'-').replace(/^-|-$/g,'')
+    .slice(0, 40) || 'image';
+
+  /// Uploads the chosen file into `images/` and puts its raw link in the
+  /// field. The picture is committed on its own, there and then — the save
+  /// button publishes the text, not the files it points at.
+  async function upload(key, index, field, input){
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!token()) { banner('err','ألصق التوكن أولًا.'); return; }
+
+    const state = $(`${key}-${field}-${index}-state`);
+    const say = message => { if (state) state.textContent = message; };
+    say('جارٍ التجهيز…');
+    try {
+      const { base64, ext } = await prepare(file);
+      const bytes = Math.round(base64.length * 0.75);
+      if (bytes > 5 * 1024 * 1024) {
+        throw new Error('الصورة كبيرة جدًا حتى بعد التصغير — اختر صورة أصغر.');
+      }
+      say(`جارٍ الرفع… ${Math.round(bytes / 1024)} ك.ب`);
+
+      const item = files[key].doc.items[index];
+      const path = `images/${slug(item.id)}-${Date.now()}.${ext}`;
+      const res = await fetch(`${API}/${path}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token()}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: `صورة: ${path}`, content: base64 }),
+      });
+      if (!res.ok) throw new Error(await describe(res, path));
+
+      const url = `${RAW}/${path}`;
+      item[field] = url;
+      const box = $(`${key}-${field}-${index}`);
+      if (box) box.value = url;
+      paintPreview(key, index, field, url);
+      paintWarnings(key);
+      markDirty();
+      say('تم الرفع');
+    } catch (error) {
+      say('');
+      banner('err', esc(error.message));
+    }
   }
 
   // ---- validation ----------------------------------------------------
+  const text = value => String(value ?? '').trim();
+
   function problems(key, item){
     const out = [];
-    const need = key === 'reels' ? ['id','title','videoUrl'] : ['id','title','content'];
+    const need = key === 'reels' ? ['id','title'] : ['id','title','content'];
     for (const field of need) {
-      if (!String(item[field] ?? '').trim()) out.push({kind:'err', text:`${field} مطلوب — التطبيق يتخطّى هذا العنصر`});
+      if (!text(item[field])) out.push({kind:'err', text:`${field} مطلوب — التطبيق يتخطّى هذا العنصر`});
     }
-    if (key === 'reels') {
-      const url = String(item.videoUrl ?? '').trim();
+
+    // Every link field has to be a link.
+    for (const field of ['videoUrl','imageUrl','linkUrl','thumbnailUrl']) {
+      const url = text(item[field]);
       if (url && !/^https?:\/\//i.test(url)) {
-        out.push({kind:'err', text:'الرابط يجب أن يبدأ بـ https://'});
-      } else if (url) {
+        out.push({kind:'err', text:`${field} يجب أن يبدأ بـ https://`});
+      }
+    }
+
+    if (key === 'reels') {
+      const video = text(item.videoUrl);
+      const image = text(item.imageUrl);
+      const link  = text(item.linkUrl);
+      if (!video && !image && !link) {
+        out.push({kind:'err', text:'لا فيديو ولا صورة ولا رابط — التطبيق يتخطّى هذا العنصر'});
+      }
+      if (video && /^https?:\/\//i.test(video)) {
         try {
-          const host = new URL(url).hostname.replace(/^www\./,'');
+          const host = new URL(video).hostname.replace(/^www\./,'');
           if (PAGE_HOSTS.some(h => host === h || host.endsWith('.'+h))) {
-            out.push({kind:'warn', text:'هذا رابط صفحة لا ملف فيديو — لن يُشغَّل'});
-          } else if (!/\.(mp4|m4v|mov|webm)(\?|$)/i.test(url)) {
+            out.push({kind:'warn', text:`رابط صفحة لا ملف فيديو — سيظهر كزرّ «فتح على ${host}» بدل التشغيل`});
+          } else if (!/\.(mp4|m4v|mov|webm|m3u8)(\?|$)/i.test(video)) {
             out.push({kind:'warn', text:'الرابط لا ينتهي بامتداد فيديو معروف — تأكّد أنه ملف مباشر'});
           }
-        } catch { out.push({kind:'err', text:'رابط غير صالح'}); }
+        } catch { out.push({kind:'err', text:'رابط فيديو غير صالح'}); }
       }
     }
     return out;
@@ -333,11 +466,23 @@ const App = (() => {
   // ---- rendering -----------------------------------------------------
   function field(key, index, name, label, {type='input', ltr=false, hint=''} = {}){
     const value = files[key].doc.items[index][name] ?? '';
-    const common = `oninput="App.set('${key}',${index},'${name}',this.value)"`;
+    const id = `${key}-${name}-${index}`;
+    const common = `id="${id}" oninput="App.set('${key}',${index},'${name}',this.value)"`;
     const control = type === 'textarea'
       ? `<textarea ${common}>${esc(value)}</textarea>`
-      : `<input ${ltr ? 'dir="ltr"' : ''} value="${esc(value)}" ${common}>`;
-    return `<label>${label}</label>${control}${hint ? `<p class="note">${hint}</p>` : ''}`;
+      // A link is read left to right whatever the page direction is.
+      : `<input ${ltr || type === 'image' ? 'dir="ltr"' : ''} value="${esc(value)}" ${common}>`;
+    const picker = type === 'image' ? `
+      <div class="filerow">
+        <button class="btn ghost small" onclick="document.getElementById('${id}-file').click()">رفع صورة…</button>
+        <input id="${id}-file" type="file" accept="image/*" class="hide"
+               onchange="App.upload('${key}',${index},'${name}',this)">
+        <span class="grow"></span>
+        <span id="${id}-state" class="note"></span>
+      </div>
+      <img id="${id}-preview" class="preview${value ? '' : ' hide'}" alt=""
+           src="${esc(value)}" onerror="this.classList.add('hide')">` : '';
+    return `<label>${label}</label>${control}${picker}${hint ? `<p class="note">${hint}</p>` : ''}`;
   }
 
   function render(){
@@ -359,9 +504,16 @@ const App = (() => {
           ${field(key, index, 'id', 'المعرّف (ثابت لا يتغيّر)', {ltr:true})}
           ${field(key, index, 'title', 'العنوان')}
           ${key === 'reels'
-            ? field(key, index, 'videoUrl', 'رابط الفيديو المباشر', {ltr:true})
-              + field(key, index, 'thumbnailUrl', 'صورة المعاينة (اختياري)', {ltr:true})
+            ? field(key, index, 'description', 'وصف قصير (اختياري)')
+              + field(key, index, 'videoUrl', 'رابط فيديو مباشر', {ltr:true,
+                  hint:'اتركه فارغًا إن كان العنصر صورة أو رابط صفحة.'})
+              + field(key, index, 'imageUrl', 'صورة بملء الشاشة (اختياري)', {type:'image',
+                  hint:'الأنسب عمودية 9:16. تُعرض وحدها حين لا يوجد فيديو.'})
+              + field(key, index, 'linkUrl', 'رابط يُفتح خارج التطبيق (اختياري)', {ltr:true})
+              + field(key, index, 'thumbnailUrl', 'صورة معاينة الفيديو (اختياري)', {type:'image'})
             : field(key, index, 'content', 'النص', {type:'textarea'})
+              + field(key, index, 'imageUrl', 'صورة البطاقة (اختياري)', {type:'image',
+                  hint:'تُقصّ بنسبة 16:9 في أعلى البطاقة.'})
               + field(key, index, 'date', 'التاريخ (اختياري)', {ltr:true})
               + field(key, index, 'category', 'التصنيف (اختياري)')}
         </div>`).join('');
@@ -445,7 +597,7 @@ const App = (() => {
     if (dirty) event.preventDefault();
   });
 
-  return { load, add, remove, move, set, save, show, forgetToken };
+  return { load, add, remove, move, set, save, show, forgetToken, upload };
 })();
 </script>
 </body>
